@@ -1,7 +1,8 @@
 """
 Fetches current weather from Open-Meteo for Ottawa, Toronto, and Vancouver.
-Open-Meteo updates every 15 minutes, so most of our 10-minute polls return a
-timestamp we've already seen — those get silently dropped by the unique constraint.
+Open-Meteo updates current conditions roughly every 15 minutes, so most of our
+10-minute polls return a timestamp we've already seen — those get silently dropped
+by the unique constraint.
 """
 
 import logging

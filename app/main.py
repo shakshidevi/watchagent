@@ -10,7 +10,7 @@ from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -66,6 +66,11 @@ Endpoints: `/readings`, `/events`, `/health`, `/dashboard` (browser UI).
 """,
     lifespan=lifespan,
 )
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/dashboard")
 
 
 @app.get(

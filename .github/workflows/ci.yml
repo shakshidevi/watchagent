@@ -23,7 +23,9 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: DATABASE_URL=sqlite:///:memory: pytest
+        env:
+          DATABASE_URL: "sqlite:///:memory:"
+        run: pytest
 
   build:
     name: Build

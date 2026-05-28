@@ -35,10 +35,12 @@ Polls live weather for Ottawa, Toronto, and Vancouver every 10 minutes, figures 
          |  /health                    |
          |  /readings                  |
          |  /events                    |
+         |  /dashboard  (browser UI)   |
+         |  /docs       (API explorer) |
          +-----------------------------+
 ```
 
-The poller runs in the background as an async task. Open-Meteo updates current conditions every 15 minutes, so each poll typically returns a new timestamp and gets stored. Duplicate timestamps (same city + same time) are silently dropped by a unique constraint on `(city, reading_time)`. When a reading is genuinely new, it goes through event detection before being committed. Events and readings are stored in the same SQLite file, which is volume-mounted in Docker so nothing gets lost between restarts.
+The poller runs in the background as an async task. Open-Meteo updates current conditions roughly every 15 minutes, so each poll typically returns a new timestamp and gets stored. Duplicate timestamps (same city + same time) are silently dropped by a unique constraint on `(city, reading_time)`. When a reading is genuinely new, it goes through event detection before being committed. Events and readings are stored in the same SQLite file, which is volume-mounted in Docker so nothing gets lost between restarts.
 
 ---
 
@@ -49,11 +51,38 @@ cp .env.example .env
 docker compose up --build
 ```
 
-That's it. The API is up at http://localhost:8000 right away. The service does one poll on startup so you have data immediately, then keeps polling every 10 minutes.
+That's it. Once the container is running, open:
+
+| URL | What you get |
+|-----|-------------|
+| `http://localhost:8000` | Redirects to the dashboard |
+| `http://localhost:8000/dashboard` | Visual weather dashboard |
+| `http://localhost:8000/docs` | Interactive API explorer (auto-generated) |
+| `http://localhost:8000/health` | Service status and row counts |
+| `http://localhost:8000/readings` | Stored weather readings |
+| `http://localhost:8000/events` | Detected weather events |
+
+The service does one poll on startup so there is data immediately, then keeps polling every 10 minutes.
 
 ---
 
 ## API
+
+### GET /dashboard
+
+Open in a browser — shows live city cards with current temperature, conditions, trend, and recent events. Auto-refreshes every 60 seconds.
+
+```
+http://localhost:8000/dashboard
+```
+
+### GET /docs
+
+FastAPI's interactive API explorer. Every endpoint is listed with its parameters and response schema — you can execute real requests directly from the browser without curl.
+
+```
+http://localhost:8000/docs
+```
 
 ### GET /health
 
