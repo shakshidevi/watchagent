@@ -1,0 +1,48 @@
+---
+description: Error handling and logging conventions for WatchAgent
+globs: ["app/**/*.py"]
+---
+
+# Error Handling & Logging
+
+## Poller failures
+
+When a weather API fetch fails, log at WARNING level with three mandatory fields — city name, HTTP status code (or exception type if no response), and the retry/attempt count if applicable. Do NOT raise the exception. Continue to the next city. Example:
+
+```python
+logger.warning(
+    "HTTP error fetching %s: status=%s url=%s",
+    city_name,
+    exc.response.status_code,
+    exc.request.url,
+)
+return
+```
+
+Use `%s` printf-style formatting in all logger calls — never f-strings — so that log filtering tools can match on the format string.
+
+## Deduplication constraint violations
+
+When a `sqlalchemy.exc.IntegrityError` is caught due to a duplicate (city, reading_time) pair, log at DEBUG level with the city and timestamp. Do NOT re-raise. Do NOT call `detect_events` for that reading.
+
+```python
+logger.debug(
+    "Duplicate reading for %s at %s — skipping",
+    reading.city,
+    reading.reading_time,
+)
+db.rollback()
+return
+```
+
+## Unexpected exceptions in the poll cycle
+
+Catch unexpected exceptions at the top of `poll_all_cities` with a bare `except Exception:`. Log at ERROR with `exc_info=True` so the full traceback is preserved. Do NOT re-raise — the APScheduler job must survive individual cycle failures.
+
+## Database session lifecycle
+
+Every function that opens a `SessionLocal()` must close it in a `finally` block. FastAPI route handlers use the `get_db` dependency which handles this automatically.
+
+## Event detection failures
+
+If `detect_events` raises, log the error and commit the reading without events rather than rolling back the entire insertion. A reading without events is better than losing a reading entirely.

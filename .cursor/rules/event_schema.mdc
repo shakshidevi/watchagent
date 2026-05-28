@@ -1,0 +1,54 @@
+---
+description: Event schema and detection conventions for WatchAgent
+globs: ["app/detector.py", "tests/test_event_detection.py"]
+---
+
+# Event Schema & Detection Conventions
+
+## Event record fields (mandatory)
+
+Every `Event` object created by a detector function must populate all of these:
+
+| Field            | Type    | Rule                                                             |
+|------------------|---------|------------------------------------------------------------------|
+| `city`           | str     | Exact match to the city name in `CITIES` list in poller.py      |
+| `event_type`     | str     | snake_case, noun-phrase describing what happened                 |
+| `severity`       | str     | One of exactly: `"info"`, `"warning"`, `"critical"`             |
+| `reading_id`     | int     | ID of the `Reading` that triggered the event (must exist in DB) |
+| `reading_time`   | datetime| Copied from the triggering reading — denormalized for fast queries|
+| `detected_at`    | datetime| `datetime.now(timezone.utc).replace(tzinfo=None)` at event creation time |
+| `description`    | str     | Human-readable, must include city + what happened + the numeric values that triggered it |
+| `metric_name`    | str\|None | The field name that triggered the event, e.g. `"wind_speed_10m"` |
+| `metric_value`   | float\|None | The actual measurement that triggered the event              |
+| `baseline_value` | float\|None | The threshold or rolling mean used for comparison            |
+
+## Description format
+
+Descriptions must include: `{city}: {event summary} — {key metric} {value} {unit} ({context})`.
+
+Good: `"Ottawa: high wind — 82.0 km/h (threshold 70 km/h)"`
+Bad: `"High wind detected"`
+
+## Severity guidelines
+
+Severity is dynamic for most event types — determined by the magnitude of the delta, not a fixed label:
+
+- `"critical"`: immediate safety risk or extreme magnitude (thunderstorm/freezing rain, wind chill < -20 °C, drop ≥ 10 °C, feels-like gap ≥ 10 °C, cross-city delta ≥ 25 °C / apparent ≥ 16 °C)
+- `"warning"`: noteworthy and potentially hazardous (high wind, heavy precip, anomaly, drop ≥ 6 °C, spike ≥ 8 °C, feels-like gap ≥ 7 °C, cross-city delta ≥ 20 °C / apparent ≥ 12 °C, wind margin ≥ 35 km/h)
+- `"info"`: comparative or contextual observation — smaller deltas that are still meaningful (feels-like gap 4–7 °C, spike 5–8 °C, cross-city deltas below warning tier, wind margin 20–35 km/h)
+
+Severity escalation bypasses cooldown: if a `warning` recently fired for a given event type/city and conditions now qualify as `critical`, the critical event goes through regardless of the cooldown window.
+
+## New event type checklist
+
+When adding a new event type to `detector.py`:
+
+1. Define the threshold as a module-level constant with a comment explaining its source (e.g. "Environment Canada warning level").
+2. Write the checker function as `_check_{event_type}(reading, db, events)` — appends to `events`, never returns a value.
+3. Call it from `detect_events()` in the order: absolute thresholds first, then relative (history-dependent), then cross-city.
+4. Add tests in `tests/test_event_detection.py` with at least: one test that fires the event, one that verifies the boundary does NOT fire, and one edge case (e.g., no history, extreme values).
+5. Document the event type in the README `Event detection` section.
+
+## No side effects in checker functions
+
+Checker functions must not commit or rollback the session, write to external systems, or raise exceptions. They only call `_make_event()` and append to the `events` list.

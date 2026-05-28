@@ -1,0 +1,16 @@
+services:
+  watchagent:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Named volume keeps the SQLite database across container restarts
+      - weather_data:/app/data
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/weather.db}
+      - POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS:-600}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+
+volumes:
+  weather_data:
